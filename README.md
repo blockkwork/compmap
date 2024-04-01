@@ -10,7 +10,7 @@ Compile time hash map that supports keys and values of different data types
 const hmap = @import("hmap.zig")
 ```
 
-**also see [usage](#🚀-usage)**
+**also see usage**
 
 
 ## 💡 Info
