@@ -1,6 +1,6 @@
 const std = @import("std");
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+// var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 const ClearOptions = struct {
     set_default_capacity: bool = false,
@@ -25,8 +25,9 @@ pub fn HashMap(comptime T: type, comptime T2: type) type {
         pub fn init() !Self {
             const capacity: usize = 2 << 13; // default capacity
 
-            const allocator = gpa.allocator();
-            const buckets = try allocator.alloc(Bucket(T, T2), @as(usize, @intCast(capacity)));
+            // const allocator = gpa.allocator();
+            const allocator = std.heap.page_allocator;
+            const buckets = try allocator.alloc(Bucket(T, T2), capacity);
 
             return .{
                 .buckets = buckets,
@@ -43,10 +44,20 @@ pub fn HashMap(comptime T: type, comptime T2: type) type {
         /// for debugging only
         fn buckets_print(self: *Self) void {
             for (self.buckets) |x| {
-                if (x.key > 100000) {
-                    continue;
+                switch (@TypeOf(x.key)) {
+                    []const u8, []u8 => {
+                        if (x.found)
+                            std.debug.print("key: {s}\tvalue:{}\n", .{ x.key, x.value });
+                    },
+                    u8, u16, u32, u64, u128 => {
+                        if (x.key > 100000) {
+                            continue;
+                        }
+                        std.debug.print("key: {}\tvalue:{}\n", .{ x.key, x.value });
+                    },
+                    else => {},
                 }
-                std.debug.print("key: {}\tvalue:{}\n", .{ x.key, x.value });
+                // std.debug.print("key: {}\tvalue:{}\n", .{ x.key, x.value });
             }
         }
 
@@ -66,13 +77,57 @@ pub fn HashMap(comptime T: type, comptime T2: type) type {
             // self.buckets_print();
         }
 
-        pub fn delete(
+        pub fn del(
             self: *Self,
             K: T,
-        ) !void {
-            _ = self; // autofix
-            _ = K; // autofix
+        ) void {
+            const key = self.hash(K);
 
+            switch (@TypeOf(K)) {
+                u8, u16, u32, u64, u128 => {
+                    if (key == 0) {
+                        if (self.buckets[key].found) {
+                            for (key..key + self.buckets.len) |x| {
+                                if (self.buckets.len == x) break;
+                                const b = self.buckets[x];
+                                if (b.found) {
+                                    if (key == x) {
+                                        if (b.found) self.buckets[x] = self.buckets[x + 1];
+                                    }
+                                }
+                            }
+                        }
+                        return;
+                    }
+                    if (self.buckets[key].found) {
+                        for (key..key + self.buckets.len) |x| {
+                            if (self.buckets.len == x) break;
+                            const b = self.buckets[x - 1];
+                            if (b.found) {
+                                if (key == x - 1) {
+                                    self.buckets[x - 1] = self.buckets[x];
+                                }
+                            }
+                        }
+                    }
+                },
+                []const u8, []u8 => {
+                    if (self.buckets[key].found) {
+                        for (key..key + self.buckets.len) |x| {
+                            if (self.buckets.len == x) break;
+                            const b = self.buckets[x - 1];
+                            if (b.found) {
+                                if (key == x - 1) {
+                                    self.buckets[x - 1] = self.buckets[x];
+                                }
+                            }
+                        }
+                    }
+                },
+                else => {
+                    @compileError(std.fmt.comptimePrint("Unsupported key type: {}", .{@TypeOf(K)}));
+                },
+            }
         }
         pub fn put(
             self: *Self,
@@ -86,7 +141,7 @@ pub fn HashMap(comptime T: type, comptime T2: type) type {
             // std.debug.print("hash value {s} - {}\n", .{ K, key });
 
             if (self.buckets[key].found) { // collision
-                // std.debug.print("\ncollision: {s} - {}. Found key: {s}\n", .{ K, key, self.buckets[key].key });
+                // std.debug.print("\ncollision: {} - {}. Found key: {}\n", .{ K, key, self.buckets[key].key });
                 var coll_key: usize = key + 1;
                 if (self.buckets[coll_key].found) {
                     coll_key += 1;

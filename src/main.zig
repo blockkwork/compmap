@@ -4,15 +4,22 @@ const hashmap = @import("hashmap.zig");
 const allocator = std.heap.page_allocator;
 
 pub fn main() !void {
-    var t = try hashmap.HashMap(u64, u64).init();
-    defer t.deinit();
+    try ex2();
+}
 
-    t.put(3316, 329);
-    t.put(732, 300);
+fn ex2() !void {
+    var hmap = try hashmap.HashMap([]const u8, u32).init();
+    defer hmap.deinit();
 
-    const res = t.get(3316);
-    std.debug.print("{?}\n", .{res});
+    // put value
+    // 123 - key
+    // 900 - value
+    hmap.put("compmap", 900);
+    hmap.put("hello", 777);
 
-    const res2 = t.get(732);
-    std.debug.print("{?}\n", .{res2});
+    // get value
+    const result = hmap.get("hello");
+    std.debug.print("{}\n", .{result.?}); // output: 777
+
+    try hmap.clear(.{}); // delete all buckets
 }
